@@ -1,4 +1,3 @@
-
 const mongoose = require('mongoose');
 
 const meditationSessionSchema = new mongoose.Schema({

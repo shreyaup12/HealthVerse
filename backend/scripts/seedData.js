@@ -1,4 +1,4 @@
-// server.js (Enhanced version with security middleware)
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');

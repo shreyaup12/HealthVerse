@@ -135,7 +135,7 @@ const Chatbot = () => {
               <div className="message-content">
                 <div className={`message-bubble ${message.isError ? 'message-error' : ''}`}>
                   <p className="message-text">{message.text}</p>
-                  {!message.isHealthcareRelated && message.sender === 'bot' && (
+                  {message.isHealthcareRelated === false && message.sender === 'bot' && (
                     <div className="message-warning">
                       <AlertCircle className="warning-icon" />
                       <span>Non-healthcare question detected</span>

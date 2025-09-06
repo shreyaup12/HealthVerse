@@ -1,6 +1,6 @@
-
 const express = require('express');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const ChatHistory = require('../models/ChatHistory'); // Add this import
 const router = express.Router();
 
 // Initialize Gemini AI
@@ -29,12 +29,38 @@ Rules:
 3. Do not provide specific medical diagnoses or prescribe treatments. Always include this disclaimer at the end of every healthcare response:
    "⚠️ This information is for educational purposes only. Please consult a medical professional for personal health advice."
 
-4. Keep responses clear, concise, and beginner-friendly.
+4. FORMATTING REQUIREMENTS - Always format your responses with proper structure:
+   - Start with a brief introduction to the topic
+   - Use clear paragraph breaks (double line breaks) between sections
+   - Use bullet points with • for listing items
+   - Use numbered lists (1. 2. 3.) for step-by-step instructions
+   - Use **bold text** for important terms, headings, or key points
+   - Break long content into multiple short paragraphs (2-3 sentences each)
+   - End with actionable advice or summary when appropriate
+   - Never provide single paragraph responses - always use proper formatting
+
 5. If the query is vague, ask a clarifying question before answering.
 6. Be empathetic and supportive, especially for mental health queries.
 7. Encourage healthy habits and positive lifestyle choices.
 
-Remember: You're part of a wellness platform, so maintain a caring and supportive tone while being informative.
+EXAMPLE FORMATTING:
+**Topic Overview**
+Brief introduction paragraph.
+
+**Key Points:**
+- First important point
+- Second important point  
+- Third important point
+
+**Steps to Follow:**
+1. First step with explanation
+2. Second step with explanation
+3. Third step with explanation
+
+**Important Considerations:**
+Additional paragraph with important notes.
+
+Remember: You're part of a wellness platform, so maintain a caring and supportive tone while being informative and well-formatted.
 `;
 
 // Function to check if question is healthcare-related
@@ -58,22 +84,47 @@ const isHealthcareRelated = (question) => {
 // POST /api/chat - Send message to chatbot
 router.post('/', async (req, res) => {
   try {
-    const { message, conversationHistory = [] } = req.body;
+    const { message, conversationHistory = [], userId } = req.body; // Add userId
 
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
     }
 
     // Check if the question is healthcare-related
-    if (!isHealthcareRelated(message)) {
+    const isHealthcare = isHealthcareRelated(message);
+    
+    if (!isHealthcare) {
+      const nonHealthcareResponse = "I'm designed only for medical and healthcare-related questions. Please ask me something in that domain.";
+      
+      // Save non-healthcare interaction if userId provided
+      if (userId) {
+        try {
+          await ChatHistory.findOneAndUpdate(
+            { userId },
+            {
+              $push: {
+                conversations: {
+                  message,
+                  response: nonHealthcareResponse,
+                  isHealthcareRelated: false
+                }
+              }
+            },
+            { upsert: true, new: true }
+          );
+        } catch (dbError) {
+          console.error('Database error:', dbError);
+        }
+      }
+
       return res.json({
-        response: "I'm designed only for medical and healthcare-related questions. Please ask me something in that domain.",
+        response: nonHealthcareResponse,
         isHealthcareRelated: false
       });
     }
 
-    // Get the generative model
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    // Get the generative model (free tier compatible)
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     // Build conversation context
     let conversationContext = HEALTHCARE_SYSTEM_PROMPT + "\n\nConversation History:\n";
@@ -97,6 +148,28 @@ router.post('/', async (req, res) => {
       finalResponse += "\n\n⚠️ This information is for educational purposes only. Please consult a medical professional for personal health advice.";
     }
 
+    // Save conversation to database if userId provided
+    if (userId) {
+      try {
+        await ChatHistory.findOneAndUpdate(
+          { userId },
+          {
+            $push: {
+              conversations: {
+                message,
+                response: finalResponse,
+                isHealthcareRelated: true
+              }
+            }
+          },
+          { upsert: true, new: true }
+        );
+      } catch (dbError) {
+        console.error('Database save error:', dbError);
+        // Don't fail the response if database save fails
+      }
+    }
+
     res.json({
       response: finalResponse,
       isHealthcareRelated: true,
@@ -107,6 +180,30 @@ router.post('/', async (req, res) => {
     console.error('Chat API Error:', error);
     res.status(500).json({
       error: 'Failed to process your message. Please try again.',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// GET /api/chat/history/:userId - Get chat history for a user
+router.get('/history/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const chatHistory = await ChatHistory.findOne({ userId });
+    
+    if (!chatHistory) {
+      return res.json({ conversations: [] });
+    }
+
+    res.json({ 
+      conversations: chatHistory.conversations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    });
+
+  } catch (error) {
+    console.error('Get chat history error:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve chat history',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
