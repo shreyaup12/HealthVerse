@@ -1,220 +1,261 @@
-const express = require('express');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const ChatHistory = require('../models/ChatHistory'); // Add this import
-const router = express.Router();
+// src/components/Features/Chatbot.js
+import React, { useState, useRef, useEffect } from 'react';
+import { Send, Bot, User, AlertCircle, Loader2 } from 'lucide-react';
+import { api } from '../../services/api';
+import './Features.css';
 
-// Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const Chatbot = () => {
+  const [messages, setMessages] = useState([
+    {
+      id: 1,
+      text: "Hello! I'm your AI health assistant. I can help you with medical questions, wellness advice, nutrition tips, and more. What would you like to know today?",
+      sender: 'bot',
+      timestamp: new Date()
+    }
+  ]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
 
-// Healthcare system prompt
-const HEALTHCARE_SYSTEM_PROMPT = `
-You are a Healthcare Q&A Assistant for HealthVerse, a mental wellness platform.
-Your role is to provide reliable, evidence-based information about healthcare, wellness, nutrition, fitness, symptoms, diseases, and treatments.
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
-Rules:
-1. Answer ONLY healthcare-related questions including:
-   - General health and wellness
-   - Mental health and wellness
-   - Nutrition and diet
-   - Fitness and exercise
-   - Symptoms and conditions
-   - Preventive care
-   - Stress management
-   - Sleep health
-   - Basic medical information
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
-2. If the question is unrelated to healthcare (e.g., politics, movies, coding, entertainment, math, general conversation), politely refuse with:
-   "I'm designed only for medical and healthcare-related questions. Please ask me something in that domain."
+  // Function to format message text with proper line breaks and styling
+  const formatMessageText = (text) => {
+    if (!text) return text;
+    
+    return text
+      // Convert **bold text** to <strong>
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      // Convert bullet points
+      .replace(/• /g, '• ')
+      // Convert numbered lists
+      .replace(/(\d+\. )/g, '$1')
+      // Convert line breaks to <br> tags
+      .replace(/\n\n/g, '<br><br>')
+      .replace(/\n/g, '<br>');
+  };
 
-3. Do not provide specific medical diagnoses or prescribe treatments. Always include this disclaimer at the end of every healthcare response:
-   "⚠️ This information is for educational purposes only. Please consult a medical professional for personal health advice."
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    
+    if (!inputMessage.trim() || isLoading) return;
 
-4. FORMATTING REQUIREMENTS - Always format your responses with proper structure:
-   - Start with a brief introduction to the topic
-   - Use clear paragraph breaks (double line breaks) between sections
-   - Use bullet points with • for listing items
-   - Use numbered lists (1. 2. 3.) for step-by-step instructions
-   - Use **bold text** for important terms, headings, or key points
-   - Break long content into multiple short paragraphs (2-3 sentences each)
-   - End with actionable advice or summary when appropriate
-   - Never provide single paragraph responses - always use proper formatting
+    const userMessage = {
+      id: Date.now(),
+      text: inputMessage.trim(),
+      sender: 'user',
+      timestamp: new Date()
+    };
 
-5. If the query is vague, ask a clarifying question before answering.
-6. Be empathetic and supportive, especially for mental health queries.
-7. Encourage healthy habits and positive lifestyle choices.
+    setMessages(prev => [...prev, userMessage]);
+    setInputMessage('');
+    setIsLoading(true);
+    setError('');
 
-EXAMPLE FORMATTING:
-**Topic Overview**
-Brief introduction paragraph.
+    try {
+      // Prepare conversation history for context
+      const conversationHistory = messages.map(msg => ({
+        message: msg.text,
+        response: msg.sender === 'bot' ? msg.text : ''
+      })).filter(item => item.message);
 
-**Key Points:**
-- First important point
-- Second important point  
-- Third important point
+      const response = await api.sendChatMessage(userMessage.text, conversationHistory);
+      
+      const botMessage = {
+        id: Date.now() + 1,
+        text: response.response,
+        sender: 'bot',
+        timestamp: new Date(),
+        isHealthcareRelated: response.isHealthcareRelated
+      };
 
-**Steps to Follow:**
-1. First step with explanation
-2. Second step with explanation
-3. Third step with explanation
+      setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error('Chat error:', error);
+      setError('Sorry, I encountered an error. Please try again.');
+      
+      const errorMessage = {
+        id: Date.now() + 1,
+        text: "I apologize, but I'm having trouble responding right now. Please try again in a moment.",
+        sender: 'bot',
+        timestamp: new Date(),
+        isError: true
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-**Important Considerations:**
-Additional paragraph with important notes.
-
-Remember: You're part of a wellness platform, so maintain a caring and supportive tone while being informative and well-formatted.
-`;
-
-// Function to check if question is healthcare-related
-const isHealthcareRelated = (question) => {
-  const healthcareKeywords = [
-    'health', 'medical', 'doctor', 'medicine', 'treatment', 'symptom', 'disease',
-    'wellness', 'fitness', 'nutrition', 'diet', 'exercise', 'mental', 'stress',
-    'anxiety', 'depression', 'sleep', 'pain', 'headache', 'fever', 'cold',
-    'flu', 'vitamin', 'supplement', 'therapy', 'hospital', 'clinic', 'nurse',
-    'medication', 'prescription', 'diagnosis', 'prevention', 'immune', 'vaccine',
-    'heart', 'blood', 'pressure', 'diabetes', 'weight', 'BMI', 'calories',
-    'protein', 'carbs', 'fat', 'sugar', 'cholesterol', 'meditation', 'yoga',
-    'breathing', 'relaxation', 'mindfulness', 'mood', 'emotional', 'psychology',
-    'psychiatric', 'counseling', 'recovery', 'addiction', 'smoking', 'alcohol'
+  const quickQuestions = [
+    "What are the benefits of regular exercise?",
+    "How can I improve my sleep quality?",
+    "What foods boost immune system?",
+    "How to manage stress and anxiety?",
+    "Signs of dehydration to watch for",
+    "Healthy habits for mental wellness"
   ];
 
-  const questionLower = question.toLowerCase();
-  return healthcareKeywords.some(keyword => questionLower.includes(keyword));
+  const handleQuickQuestion = (question) => {
+    setInputMessage(question);
+    inputRef.current?.focus();
+  };
+
+  const formatTime = (timestamp) => {
+    return timestamp.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  return (
+    <div className="feature-container">
+      <div className="feature-header">
+        <div className="feature-title-section">
+          <div className="feature-icon-wrapper feature-icon-blue">
+            <Bot className="feature-icon" />
+          </div>
+          <div>
+            <h1 className="feature-title">AI Health Assistant</h1>
+            <p className="feature-subtitle">
+              Get instant, reliable answers to your health and wellness questions
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="chat-container">
+        {/* Chat Messages */}
+        <div className="chat-messages">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`message ${message.sender === 'user' ? 'message-user' : 'message-bot'}`}
+            >
+              <div className="message-avatar">
+                {message.sender === 'user' ? (
+                  <User className="avatar-icon" />
+                ) : (
+                  <Bot className="avatar-icon" />
+                )}
+              </div>
+              <div className="message-content">
+                <div className={`message-bubble ${message.isError ? 'message-error' : ''}`}>
+                  <div 
+                    className="message-text"
+                    dangerouslySetInnerHTML={{ __html: formatMessageText(message.text) }}
+                  />
+                  {message.isHealthcareRelated === false && message.sender === 'bot' && (
+                    <div className="message-warning">
+                      <AlertCircle className="warning-icon" />
+                      <span>Non-healthcare question detected</span>
+                    </div>
+                  )}
+                </div>
+                <span className="message-time">{formatTime(message.timestamp)}</span>
+              </div>
+            </div>
+          ))}
+          
+          {isLoading && (
+            <div className="message message-bot">
+              <div className="message-avatar">
+                <Bot className="avatar-icon" />
+              </div>
+              <div className="message-content">
+                <div className="message-bubble message-loading">
+                  <Loader2 className="loading-icon" />
+                  <span>Thinking...</span>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Quick Questions */}
+        {messages.length <= 1 && (
+          <div className="quick-questions">
+            <h3 className="quick-questions-title">Quick Questions</h3>
+            <div className="quick-questions-grid">
+              {quickQuestions.map((question, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleQuickQuestion(question)}
+                  className="quick-question-btn"
+                  disabled={isLoading}
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Error Display */}
+        {error && (
+          <div className="chat-error">
+            <AlertCircle className="error-icon" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Chat Input */}
+        <form onSubmit={handleSendMessage} className="chat-input-form">
+          <div className="chat-input-wrapper">
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              placeholder="Ask me anything about health and wellness..."
+              className="chat-input"
+              disabled={isLoading}
+              maxLength={500}
+            />
+            <button
+              type="submit"
+              disabled={!inputMessage.trim() || isLoading}
+              className="chat-send-btn"
+            >
+              {isLoading ? (
+                <Loader2 className="send-icon loading-spin" />
+              ) : (
+                <Send className="send-icon" />
+              )}
+            </button>
+          </div>
+          <div className="chat-input-info">
+            <span className="input-info-text">
+              Ask about symptoms, treatments, nutrition, fitness, mental health, and more
+            </span>
+            <span className="input-char-count">
+              {inputMessage.length}/500
+            </span>
+          </div>
+        </form>
+      </div>
+
+      {/* Disclaimer */}
+      <div className="health-disclaimer">
+        <AlertCircle className="disclaimer-icon" />
+        <div className="disclaimer-content">
+          <strong>Medical Disclaimer:</strong> This AI assistant provides general health information for educational purposes only. 
+          Always consult with a qualified healthcare professional for medical advice, diagnosis, or treatment.
+        </div>
+      </div>
+    </div>
+  );
 };
 
-// POST /api/chat - Send message to chatbot
-router.post('/', async (req, res) => {
-  try {
-    const { message, conversationHistory = [], userId } = req.body; // Add userId
-
-    if (!message) {
-      return res.status(400).json({ error: 'Message is required' });
-    }
-
-    // Check if the question is healthcare-related
-    const isHealthcare = isHealthcareRelated(message);
-    
-    if (!isHealthcare) {
-      const nonHealthcareResponse = "I'm designed only for medical and healthcare-related questions. Please ask me something in that domain.";
-      
-      // Save non-healthcare interaction if userId provided
-      if (userId) {
-        try {
-          await ChatHistory.findOneAndUpdate(
-            { userId },
-            {
-              $push: {
-                conversations: {
-                  message,
-                  response: nonHealthcareResponse,
-                  isHealthcareRelated: false
-                }
-              }
-            },
-            { upsert: true, new: true }
-          );
-        } catch (dbError) {
-          console.error('Database error:', dbError);
-        }
-      }
-
-      return res.json({
-        response: nonHealthcareResponse,
-        isHealthcareRelated: false
-      });
-    }
-
-    // Get the generative model (free tier compatible)
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-    // Build conversation context
-    let conversationContext = HEALTHCARE_SYSTEM_PROMPT + "\n\nConversation History:\n";
-    
-    // Add recent conversation history (last 5 exchanges to manage token limits)
-    const recentHistory = conversationHistory.slice(-10);
-    recentHistory.forEach(exchange => {
-      conversationContext += `User: ${exchange.message}\nAssistant: ${exchange.response}\n`;
-    });
-
-    conversationContext += `\nUser: ${message}\nAssistant: `;
-
-    // Generate response
-    const result = await model.generateContent(conversationContext);
-    const response = await result.response;
-    const text = response.text();
-
-    // Ensure disclaimer is included for healthcare responses
-    let finalResponse = text;
-    if (!text.includes("⚠️") && !text.includes("I'm designed only for medical")) {
-      finalResponse += "\n\n⚠️ This information is for educational purposes only. Please consult a medical professional for personal health advice.";
-    }
-
-    // Save conversation to database if userId provided
-    if (userId) {
-      try {
-        await ChatHistory.findOneAndUpdate(
-          { userId },
-          {
-            $push: {
-              conversations: {
-                message,
-                response: finalResponse,
-                isHealthcareRelated: true
-              }
-            }
-          },
-          { upsert: true, new: true }
-        );
-      } catch (dbError) {
-        console.error('Database save error:', dbError);
-        // Don't fail the response if database save fails
-      }
-    }
-
-    res.json({
-      response: finalResponse,
-      isHealthcareRelated: true,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Chat API Error:', error);
-    res.status(500).json({
-      error: 'Failed to process your message. Please try again.',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
-
-// GET /api/chat/history/:userId - Get chat history for a user
-router.get('/history/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
-    
-    const chatHistory = await ChatHistory.findOne({ userId });
-    
-    if (!chatHistory) {
-      return res.json({ conversations: [] });
-    }
-
-    res.json({ 
-      conversations: chatHistory.conversations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-    });
-
-  } catch (error) {
-    console.error('Get chat history error:', error);
-    res.status(500).json({ 
-      error: 'Failed to retrieve chat history',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
-
-// GET /api/chat/health - Health check for chat service
-router.get('/health', (req, res) => {
-  res.json({ 
-    status: 'Chat service is running',
-    geminiConfigured: !!process.env.GEMINI_API_KEY 
-  });
-});
-
-module.exports = router;
+export default Chatbot;

@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -12,8 +11,17 @@ connectDB();
 
 const app = express();
 
-// Middleware
-app.use(cors());
+// Middleware - UPDATED CORS
+app.use(cors({
+  origin: [
+    'https://healthverse.netlify.app',
+    'http://localhost:3000'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'x-auth-token']
+}));
+
 app.use(express.json());
 
 // Root route - ADDED THIS

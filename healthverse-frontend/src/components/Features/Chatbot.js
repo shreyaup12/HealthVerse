@@ -27,6 +27,22 @@ const Chatbot = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Function to format message text with proper line breaks and styling
+  const formatMessageText = (text) => {
+    if (!text) return text;
+    
+    return text
+      // Convert **bold text** to <strong>
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      // Convert bullet points
+      .replace(/• /g, '• ')
+      // Convert numbered lists
+      .replace(/(\d+\. )/g, '$1')
+      // Convert line breaks to <br> tags
+      .replace(/\n\n/g, '<br><br>')
+      .replace(/\n/g, '<br>');
+  };
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     
@@ -134,7 +150,10 @@ const Chatbot = () => {
               </div>
               <div className="message-content">
                 <div className={`message-bubble ${message.isError ? 'message-error' : ''}`}>
-                  <p className="message-text">{message.text}</p>
+                  <div 
+                    className="message-text"
+                    dangerouslySetInnerHTML={{ __html: formatMessageText(message.text) }}
+                  />
                   {message.isHealthcareRelated === false && message.sender === 'bot' && (
                     <div className="message-warning">
                       <AlertCircle className="warning-icon" />

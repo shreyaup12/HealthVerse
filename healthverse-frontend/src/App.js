@@ -11,6 +11,7 @@ import Meditation from './components/Features/Meditation';
 import Layout from './components/Layout/Layout';
 import './styles/globals.css';
 
+
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
