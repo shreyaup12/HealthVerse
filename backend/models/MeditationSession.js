@@ -19,11 +19,7 @@ const meditationSessionSchema = new mongoose.Schema({
     type: Number,
     required: true // actual time spent in minutes
   },
-  soundType: {
-    type: String,
-    enum: ['rain', 'forest', 'ocean', 'silence'],
-    default: 'silence'
-  },
+  
   date: {
     type: Date,
     default: Date.now

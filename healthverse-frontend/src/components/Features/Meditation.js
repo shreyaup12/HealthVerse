@@ -1,6 +1,6 @@
 // src/components/Features/Meditation.js
 import React, { useState, useEffect, useRef } from 'react';
-import { Flower2, Play, Pause, Square, Volume2, VolumeX, Clock, Target, Award } from 'lucide-react';
+import { Flower2, Play, Pause, Square, Clock, Target, Award } from 'lucide-react';
 import { api } from '../../services/api';
 import './Features.css';
 
@@ -9,8 +9,6 @@ const Meditation = () => {
   const [duration, setDuration] = useState(5); // in minutes
   const [timeLeft, setTimeLeft] = useState(300); // in seconds
   const [selectedType, setSelectedType] = useState('breathing');
-  const [selectedSound, setSelectedSound] = useState('silence');
-  const [isMuted, setIsMuted] = useState(false);
   const [sessions, setSessions] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -24,13 +22,6 @@ const Meditation = () => {
     { id: 'mindfulness', label: 'Mindfulness', description: 'Present moment awareness', emoji: '🧘‍♀️' },
     { id: 'sleep', label: 'Sleep', description: 'Relaxation for better sleep', emoji: '😴' },
     { id: 'focus', label: 'Focus', description: 'Improve concentration', emoji: '🎯' }
-  ];
-
-  const soundOptions = [
-    { id: 'silence', label: 'Silence', emoji: '🤫' },
-    { id: 'rain', label: 'Rain', emoji: '🌧️' },
-    { id: 'forest', label: 'Forest', emoji: '🌲' },
-    { id: 'ocean', label: 'Ocean Waves', emoji: '🌊' }
   ];
 
   const durations = [5, 10, 15, 20, 30];
@@ -110,8 +101,7 @@ const Meditation = () => {
       await api.saveMeditationSession({
         duration,
         type: selectedType,
-        completedDuration: Math.round(completedSeconds / 60), // Convert to minutes
-        soundType: selectedSound
+        completedDuration: Math.round(completedSeconds / 60) // Convert to minutes
       });
       
       await fetchMeditationData();
@@ -206,22 +196,6 @@ const Meditation = () => {
               </div>
             </div>
 
-            <div className="setup-section">
-              <h3 className="setup-title">Background Sound</h3>
-              <div className="sound-selector">
-                {soundOptions.map((sound) => (
-                  <button
-                    key={sound.id}
-                    onClick={() => setSelectedSound(sound.id)}
-                    className={`sound-btn ${selectedSound === sound.id ? 'selected' : ''}`}
-                  >
-                    <span className="sound-emoji">{sound.emoji}</span>
-                    <span className="sound-label">{sound.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <button onClick={handleStart} className="btn btn-primary meditation-start-btn">
               <Play className="btn-icon" />
               Start Meditation
@@ -290,14 +264,6 @@ const Meditation = () => {
                 {isActive ? <Pause className="control-icon" /> : <Play className="control-icon" />}
                 {isActive ? 'Pause' : 'Resume'}
               </button>
-
-              <button
-                onClick={() => setIsMuted(!isMuted)}
-                className="control-btn control-btn-volume"
-              >
-                {isMuted ? <VolumeX className="control-icon" /> : <Volume2 className="control-icon" />}
-                {isMuted ? 'Unmute' : 'Mute'}
-              </button>
             </div>
           </div>
         )}
@@ -341,7 +307,6 @@ const Meditation = () => {
             <div className="sessions-list">
               {sessions.slice(0, 5).map((session, index) => {
                 const type = meditationTypes.find(t => t.id === session.type);
-                const sound = soundOptions.find(s => s.id === session.soundType);
                 return (
                   <div key={session._id || index} className="session-item">
                     <div className="session-icon">
@@ -350,7 +315,7 @@ const Meditation = () => {
                     <div className="session-info">
                       <div className="session-type">{type?.label || 'Meditation'}</div>
                       <div className="session-details">
-                        {session.completedDuration}/{session.duration} min • {sound?.label || 'Silence'}
+                        {session.completedDuration}/{session.duration} min
                       </div>
                     </div>
                     <div className="session-date">

@@ -9,14 +9,13 @@ const router = express.Router();
 // @access  Private
 router.post('/session', auth, async (req, res) => {
   try {
-    const { duration, type, completedDuration, soundType } = req.body;
+    const { duration, type, completedDuration } = req.body;
 
     const session = new MeditationSession({
       userId: req.user.id,
       duration,
       type,
-      completedDuration,
-      soundType
+      completedDuration
     });
 
     await session.save();
